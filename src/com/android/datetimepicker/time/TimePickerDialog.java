@@ -16,13 +16,10 @@
 
 package com.android.datetimepicker.time;
 
-import android.animation.ObjectAnimator;
-import android.app.ActionBar.LayoutParams;
-import android.app.DialogFragment;
 import android.content.Context;
 import android.content.res.Resources;
-import android.os.Build;
 import android.os.Bundle;
+import android.support.v4.app.DialogFragment;
 import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
@@ -32,13 +29,12 @@ import android.view.View.OnClickListener;
 import android.view.View.OnKeyListener;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
-
 import com.android.datetimepicker.R;
 import com.android.datetimepicker.Utils;
 import com.android.datetimepicker.time.RadialPickerLayout.OnValueSelectedListener;
+import com.nineoldandroids.animation.ObjectAnimator;
 
 import java.text.DateFormatSymbols;
 import java.util.ArrayList;
@@ -249,7 +245,7 @@ public class TimePickerDialog extends DialogFragment implements OnValueSelectedL
             mAmPmTextView.setVisibility(View.GONE);
 
             RelativeLayout.LayoutParams paramsSeparator = new RelativeLayout.LayoutParams(
-                    LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+                    RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
             paramsSeparator.addRule(RelativeLayout.CENTER_IN_PARENT);
             TextView separatorView = (TextView) view.findViewById(R.id.separator);
             separatorView.setLayoutParams(paramsSeparator);

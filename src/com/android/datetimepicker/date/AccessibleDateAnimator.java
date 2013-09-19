@@ -19,6 +19,7 @@ package com.android.datetimepicker.date;
 import android.content.Context;
 import android.text.format.DateUtils;
 import android.util.AttributeSet;
+import android.view.View;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.ViewAnimator;
 
@@ -27,27 +28,30 @@ public class AccessibleDateAnimator extends ViewAnimator {
 
     public AccessibleDateAnimator(Context context, AttributeSet attrs) {
         super(context, attrs);
+        setAccessibilityDelegate(new AccessibleDateAnimator.AccessibilityDelegate());
     }
 
     public void setDateMillis(long dateMillis) {
         mDateMillis = dateMillis;
     }
 
-    /**
-     * Announce the currently-selected date when launched.
-     */
-    @Override
-    public boolean dispatchPopulateAccessibilityEvent(AccessibilityEvent event) {
-        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // Clear the event's current text so that only the current date will be spoken.
-            event.getText().clear();
-            int flags = DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_YEAR |
-                    DateUtils.FORMAT_SHOW_WEEKDAY;
+    private class AccessibilityDelegate extends View.AccessibilityDelegate {
+        /**
+         * Announce the currently-selected date when launched.
+         */
+        @Override
+        public boolean dispatchPopulateAccessibilityEvent(View host, AccessibilityEvent event) {
+            if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                // Clear the event's current text so that only the current date will be spoken.
+                event.getText().clear();
+                int flags = DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_YEAR |
+                        DateUtils.FORMAT_SHOW_WEEKDAY;
 
-            String dateString = DateUtils.formatDateTime(getContext(), mDateMillis, flags);
-            event.getText().add(dateString);
-            return true;
+                String dateString = DateUtils.formatDateTime(getContext(), mDateMillis, flags);
+                event.getText().add(dateString);
+                return true;
+            }
+            return super.dispatchPopulateAccessibilityEvent(host, event);
         }
-        return super.dispatchPopulateAccessibilityEvent(event);
     }
 }

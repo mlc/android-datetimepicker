@@ -16,8 +16,6 @@
 
 package com.android.datetimepicker.time;
 
-import android.animation.AnimatorSet;
-import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Service;
@@ -43,6 +41,8 @@ import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import com.android.datetimepicker.R;
+import com.nineoldandroids.animation.AnimatorSet;
+import com.nineoldandroids.animation.ObjectAnimator;
 
 public class RadialPickerLayout extends FrameLayout implements OnTouchListener {
     private static final String TAG = "RadialPickerLayout";
