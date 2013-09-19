@@ -19,13 +19,16 @@ package com.android.datetimepicker.time;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Service;
 import android.content.Context;
 import android.content.res.Resources;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.os.Vibrator;
+import android.support.v4.view.accessibility.AccessibilityManagerCompat;
 import android.text.format.DateUtils;
 import android.text.format.Time;
 import android.util.AttributeSet;
@@ -39,10 +42,7 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
-
 import com.android.datetimepicker.R;
-
-import java.util.HashMap;
 
 public class RadialPickerLayout extends FrameLayout implements OnTouchListener {
     private static final String TAG = "RadialPickerLayout";
@@ -175,7 +175,7 @@ public class RadialPickerLayout extends FrameLayout implements OnTouchListener {
             return;
         }
         mIs24HourMode = is24HourMode;
-        mHideAmPm = mAccessibilityManager.isTouchExplorationEnabled()? true : mIs24HourMode;
+        mHideAmPm = AccessibilityManagerCompat.isTouchExplorationEnabled(mAccessibilityManager) ? true : mIs24HourMode;
 
         // Initialize the circle and AM/PM circles if applicable.
         mCircleView.initialize(context, mHideAmPm);
@@ -216,6 +216,10 @@ public class RadialPickerLayout extends FrameLayout implements OnTouchListener {
                 minuteDegrees, false);
 
         mTimeInitialized = true;
+
+        if (Build.VERSION.SDK_INT >= 14) {
+            setAccessibilityDelegate(new AccessibilityDelegate());
+        }
     }
 
     public void setTime(int hours, int minutes) {
@@ -382,7 +386,7 @@ public class RadialPickerLayout extends FrameLayout implements OnTouchListener {
      * Returns mapping of any input degrees (0 to 360) to one of 12 visible output degrees (all
      * multiples of 30), where the input will be "snapped" to the closest visible degrees.
      * @param degrees The input degrees
-     * @param forceAboveOrBelow The output may be forced to either the higher or lower step, or may
+     * @param forceHigherOrLower The output may be forced to either the higher or lower step, or may
      * be allowed to snap to whichever is closer. Use 1 to force strictly higher, -1 to force
      * strictly lower, and 0 to snap to the closer one.
      * @return output degrees, will be a multiple of 30
@@ -594,7 +598,7 @@ public class RadialPickerLayout extends FrameLayout implements OnTouchListener {
                 } else {
                     // If we're in accessibility mode, force the touch to be legal. Otherwise,
                     // it will only register within the given touch target zone.
-                    boolean forceLegal = mAccessibilityManager.isTouchExplorationEnabled();
+                    boolean forceLegal = AccessibilityManagerCompat.isTouchExplorationEnabled(mAccessibilityManager);
                     // Calculate the degrees that is currently being touched.
                     mDownDegrees = getDegreesFromCoords(eventX, eventY, forceLegal, isInnerCircle);
                     if (mDownDegrees != -1) {
@@ -743,95 +747,100 @@ public class RadialPickerLayout extends FrameLayout implements OnTouchListener {
         return true;
     }
 
-    /**
-     * Necessary for accessibility, to ensure we support "scrolling" forward and backward
-     * in the circle.
-     */
-    @Override
-    public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
-      super.onInitializeAccessibilityNodeInfo(info);
-      info.addAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);
-      info.addAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
-    }
-
-    /**
-     * Announce the currently-selected time when launched.
-     */
-    @Override
-    public boolean dispatchPopulateAccessibilityEvent(AccessibilityEvent event) {
-        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // Clear the event's current text so that only the current time will be spoken.
-            event.getText().clear();
-            Time time = new Time();
-            time.hour = getHours();
-            time.minute = getMinutes();
-            long millis = time.normalize(true);
-            int flags = DateUtils.FORMAT_SHOW_TIME;
-            if (mIs24HourMode) {
-                flags |= DateUtils.FORMAT_24HOUR;
-            }
-            String timeString = DateUtils.formatDateTime(getContext(), millis, flags);
-            event.getText().add(timeString);
-            return true;
-        }
-        return super.dispatchPopulateAccessibilityEvent(event);
-    }
-
-    /**
-     * When scroll forward/backward events are received, jump the time to the higher/lower
-     * discrete, visible value on the circle.
-     */
-    @SuppressLint("NewApi")
-    @Override
-    public boolean performAccessibilityAction(int action, Bundle arguments) {
-        if (super.performAccessibilityAction(action, arguments)) {
-            return true;
+    @TargetApi(14)
+    static class AccessibilityDelegate extends View.AccessibilityDelegate {
+        /**
+         * Necessary for accessibility, to ensure we support "scrolling" forward and backward
+         * in the circle.
+         */
+        @Override
+        public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+            super.onInitializeAccessibilityNodeInfo(host, info);
+            info.addAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);
+            info.addAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
         }
 
-        int changeMultiplier = 0;
-        if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) {
-            changeMultiplier = 1;
-        } else if (action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) {
-            changeMultiplier = -1;
-        }
-        if (changeMultiplier != 0) {
-            int value = getCurrentlyShowingValue();
-            int stepSize = 0;
-            int currentItemShowing = getCurrentItemShowing();
-            if (currentItemShowing == HOUR_INDEX) {
-                stepSize = HOUR_VALUE_TO_DEGREES_STEP_SIZE;
-                value %= 12;
-            } else if (currentItemShowing == MINUTE_INDEX) {
-                stepSize = MINUTE_VALUE_TO_DEGREES_STEP_SIZE;
-            }
-
-            int degrees = value * stepSize;
-            degrees = snapOnly30s(degrees, changeMultiplier);
-            value = degrees / stepSize;
-            int maxValue = 0;
-            int minValue = 0;
-            if (currentItemShowing == HOUR_INDEX) {
-                if (mIs24HourMode) {
-                    maxValue = 23;
-                } else {
-                    maxValue = 12;
-                    minValue = 1;
+        /**
+         * Announce the currently-selected time when launched.
+         */
+        @Override
+        public boolean dispatchPopulateAccessibilityEvent(View host, AccessibilityEvent event) {
+            if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && host instanceof RadialPickerLayout) {
+                RadialPickerLayout picker = (RadialPickerLayout)host;
+                // Clear the event's current text so that only the current time will be spoken.
+                event.getText().clear();
+                Time time = new Time();
+                time.hour = picker.getHours();
+                time.minute = picker.getMinutes();
+                long millis = time.normalize(true);
+                int flags = DateUtils.FORMAT_SHOW_TIME;
+                if (picker.mIs24HourMode) {
+                    flags |= DateUtils.FORMAT_24HOUR;
                 }
-            } else {
-                maxValue = 55;
+                String timeString = DateUtils.formatDateTime(picker.getContext(), millis, flags);
+                event.getText().add(timeString);
+                return true;
             }
-            if (value > maxValue) {
-                // If we scrolled forward past the highest number, wrap around to the lowest.
-                value = minValue;
-            } else if (value < minValue) {
-                // If we scrolled backward past the lowest number, wrap around to the highest.
-                value = maxValue;
-            }
-            setItem(currentItemShowing, value);
-            mListener.onValueSelected(currentItemShowing, value, false);
-            return true;
+            return super.dispatchPopulateAccessibilityEvent(host, event);
         }
 
-        return false;
+        /**
+         * When scroll forward/backward events are received, jump the time to the higher/lower
+         * discrete, visible value on the circle.
+         */
+        @SuppressLint("NewApi")
+        @Override
+        public boolean performAccessibilityAction(View host, int action, Bundle arguments) {
+            if (super.performAccessibilityAction(host, action, arguments)) {
+                return true;
+            }
+
+            int changeMultiplier = 0;
+            if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) {
+                changeMultiplier = 1;
+            } else if (action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) {
+                changeMultiplier = -1;
+            }
+            if (changeMultiplier != 0) {
+                RadialPickerLayout picker = (RadialPickerLayout)host;
+                int value = picker.getCurrentlyShowingValue();
+                int stepSize = 0;
+                int currentItemShowing = picker.getCurrentItemShowing();
+                if (currentItemShowing == HOUR_INDEX) {
+                    stepSize = HOUR_VALUE_TO_DEGREES_STEP_SIZE;
+                    value %= 12;
+                } else if (currentItemShowing == MINUTE_INDEX) {
+                    stepSize = MINUTE_VALUE_TO_DEGREES_STEP_SIZE;
+                }
+
+                int degrees = value * stepSize;
+                degrees = picker.snapOnly30s(degrees, changeMultiplier);
+                value = degrees / stepSize;
+                int maxValue = 0;
+                int minValue = 0;
+                if (currentItemShowing == HOUR_INDEX) {
+                    if (picker.mIs24HourMode) {
+                        maxValue = 23;
+                    } else {
+                        maxValue = 12;
+                        minValue = 1;
+                    }
+                } else {
+                    maxValue = 55;
+                }
+                if (value > maxValue) {
+                    // If we scrolled forward past the highest number, wrap around to the lowest.
+                    value = minValue;
+                } else if (value < minValue) {
+                    // If we scrolled backward past the lowest number, wrap around to the highest.
+                    value = maxValue;
+                }
+                picker.setItem(currentItemShowing, value);
+                picker.mListener.onValueSelected(currentItemShowing, value, false);
+                return true;
+            }
+
+            return false;
+        }
     }
 }
